@@ -1,1 +1,170 @@
-https://docs.google.com/spreadsheets/d/e/2PACX-1vRueSwYvjEDzUfUpjznopJvOrgBi2mvLKXenB9AE8fCSl4GbX5emfAWwtrxoYoMIYxD9P3-OJl_VxcZ/pubhtml?gid=985502554&single=true
+// pages/index.js
+import Head from "next/head";
+import { useEffect, useState } from "react";
+
+const SHEET_ID = "16Zkozc-Ocw6RUb-yhjAJhU4RR-bKqwxHiDVcr7kybAs";
+const SHEET_NAME = "Tab"; // agar alag sheet name ho to change kar lo
+const GVIZ_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(
+  SHEET_NAME
+)}`;
+
+export default function Home() {
+  const [rows, setRows] = useState([]); // parsed rows
+  const [ticker, setTicker] = useState({ nifty: "NIFTY —", bank: "BANKNIFTY —" });
+  const [totalProfit, setTotalProfit] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [lastUpdated, setLastUpdated] = useState(null);
+
+  useEffect(() => {
+    // ticker simulation
+    const t = setInterval(() => {
+      setTicker({
+        nifty: `NIFTY ${22500 + Math.floor(Math.random() * 150)}`,
+        bank: `BANKNIFTY ${47500 + Math.floor(Math.random() * 250)}`,
+      });
+    }, 3000);
+
+    // initial load + polling every 8s (adjust as needed)
+    fetchSheet();
+    const poll = setInterval(fetchSheet, 8000);
+
+    return () => {
+      clearInterval(t);
+      clearInterval(poll);
+    };
+  }, []);
+
+  async function fetchSheet() {
+    setLoading(true);
+    try {
+      const res = await fetch(GVIZ_URL, { cache: "no-store" });
+      const text = await res.text();
+      // GViz returns some prefix before JSON — find first '{' and parse
+      const jsonText = text.slice(text.indexOf("{"));
+      const data = JSON.parse(jsonText);
+      // data.table.cols (columns) and data.table.rows (cells)
+      const cols = data.table.cols.map((c) => (c && c.label ? c.label.trim() : ""));
+      const rawRows = (data.table.rows || []).map((r) =>
+        r.c.map((cell) => (cell ? (cell.v !== undefined ? cell.v : cell.f) : ""))
+      );
+
+      // Determine header indices by matching known headings
+      // expected headings: Transaction | Instrument | Qty | Entry | Entry Price | Entry Time | Exit | Exit Price | Exit Time | Profit
+      // but we'll map robustly by searching for "Instrument" and "Profit"
+      const headerRow = cols;
+      const instrumentIdx = headerRow.findIndex((h) => /instrument/i.test(h));
+      const qtyIdx = headerRow.findIndex((h) => /qty/i.test(h));
+      const profitIdx = headerRow.findIndex((h) => /profit/i.test(h));
+      const entryTimeIdx = headerRow.findIndex((h) => /entry time/i.test(h));
+      const exitTimeIdx = headerRow.findIndex((h) => /exit time/i.test(h));
+      const entryPriceIdx = headerRow.findIndex((h) => /entry price/i.test(h));
+      const exitPriceIdx = headerRow.findIndex((h) => /exit price/i.test(h));
+
+      // build objects
+      const parsed = rawRows.map((r) => {
+        return {
+          instrument: instrumentIdx >= 0 ? String(r[instrumentIdx] || "") : String(r[1] || ""),
+          qty: qtyIdx >= 0 ? Number(r[qtyIdx] || 0) : Number(r[2] || 0),
+          entry_price: entryPriceIdx >= 0 ? r[entryPriceIdx] : "",
+          entry_time: entryTimeIdx >= 0 ? r[entryTimeIdx] : "",
+          exit_price: exitPriceIdx >= 0 ? r[exitPriceIdx] : "",
+          exit_time: exitTimeIdx >= 0 ? r[exitTimeIdx] : "",
+          profit: profitIdx >= 0 ? Number(r[profitIdx] || 0) : Number(r[r.length - 1] || 0),
+        };
+      });
+
+      // filter out empty rows
+      const clean = parsed.filter((p) => p.instrument && p.instrument.toString().trim() !== "");
+      // compute total profit (sum)
+      const total = clean.reduce((s, r) => s + (isNaN(r.profit) ? 0 : Number(r.profit)), 0);
+      setRows(clean.slice(0, 100)); // keep latest ~100 rows
+      setTotalProfit(Math.round(total * 100) / 100);
+      setLastUpdated(new Date());
+    } catch (err) {
+      console.error("Sheet fetch error:", err);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function maskInstrument(name) {
+    if (!name) return "";
+    // keep first 4 and last 4 chars, mask middle
+    const s = String(name);
+    if (s.length <= 10) return s;
+    return s.slice(0, 4) + "•••" + s.slice(-4);
+  }
+
+  return (
+    <>
+      <Head>
+        <title>Profitmakes Algo — Live</title>
+        <meta name="viewport" content="width=device-width,initial-scale=1" />
+      </Head>
+
+      <div style={{ minHeight: "100vh", background: "#f8fafc", fontFamily: "Inter,Arial, sans-serif" }}>
+        <header style={{ background: "linear-gradient(90deg,#6366f1,#34d399)", color: "white", padding: 14 }}>
+          <div style={{ maxWidth: 980, margin: "0 auto", display: "flex", gap: 12, alignItems: "center" }}>
+            <div style={{ fontWeight: 700 }}>Profitmakes Algo</div>
+            <div style={{ marginLeft: "auto", fontSize: 13 }}>{lastUpdated ? `Updated: ${lastUpdated.toLocaleTimeString()}` : "Loading..."}</div>
+          </div>
+        </header>
+
+        <main style={{ maxWidth: 980, margin: "16px auto", padding: "0 12px" }}>
+          <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
+            <div style={{ flex: 1, background: "#fff", padding: 12, borderRadius: 10 }}>
+              <div style={{ fontSize: 12, color: "#6b7280" }}>Indices</div>
+              <div style={{ display: "flex", gap: 12, marginTop: 8 }}>
+                <div style={{ fontWeight: 700 }}>{ticker.nifty}</div>
+                <div style={{ fontWeight: 700 }}>{ticker.bank}</div>
+              </div>
+            </div>
+
+            <div style={{ width: 220, background: "#fff", padding: 12, borderRadius: 10 }}>
+              <div style={{ fontSize: 12, color: "#6b7280" }}>Today's P&L</div>
+              <div style={{ fontSize: 20, fontWeight: 800, color: totalProfit >= 0 ? "#16a34a" : "#ef4444", marginTop: 6 }}>
+                {totalProfit >= 0 ? `+₹${totalProfit.toLocaleString()}` : `-₹${Math.abs(totalProfit).toLocaleString()}`}
+              </div>
+            </div>
+          </div>
+
+          <section style={{ background: "#fff", padding: 12, borderRadius: 10 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+              <h3 style={{ margin: 0 }}>Latest Trades</h3>
+              <div style={{ fontSize: 12, color: "#6b7280" }}>{loading ? "Loading..." : `${rows.length} rows`}</div>
+            </div>
+
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                <thead>
+                  <tr style={{ textAlign: "left", color: "#6b7280" }}>
+                    <th style={{ padding: 8 }}>#</th>
+                    <th style={{ padding: 8 }}>Instrument</th>
+                    <th style={{ padding: 8 }}>Qty</th>
+                    <th style={{ padding: 8 }}>Entry</th>
+                    <th style={{ padding: 8 }}>Exit</th>
+                    <th style={{ padding: 8 }}>Profit</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.slice(0, 25).map((r, i) => (
+                    <tr key={i} style={{ borderTop: "1px solid #eef2f7" }}>
+                      <td style={{ padding: 8 }}>{i + 1}</td>
+                      <td style={{ padding: 8 }}>{maskInstrument(r.instrument)}</td>
+                      <td style={{ padding: 8 }}>{r.qty || "-"}</td>
+                      <td style={{ padding: 8 }}>{r.entry_price || r.entry_time || "-"}</td>
+                      <td style={{ padding: 8 }}>{r.exit_price || r.exit_time || "-"}</td>
+                      <td style={{ padding: 8, fontWeight: 700, color: r.profit >= 0 ? "#16a34a" : "#ef4444" }}>
+                        {r.profit >= 0 ? `+₹${Number(r.profit).toLocaleString()}` : `-₹${Math.abs(Number(r.profit)).toLocaleString()}`}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </main>
+      </div>
+    </>
+  );
+}
