@@ -1,1 +1,113 @@
-hi may nam is ajaj 
+import Head from "next/head";
+import { useEffect, useState } from "react";
+
+export default function Home() {
+  const [ticker, setTicker] = useState({ nifty: "NIFTY 18,250", bank: "BANKNIFTY 42,100" });
+  const [clients, setClients] = useState([]);
+  const [lastUpdated, setLastUpdated] = useState(new Date());
+
+  useEffect(() => {
+    // demo data fetcher — replace with real API / Google Sheet later
+    setClients([
+      { id: 1, name: "Ramesh Kumar", profit: 512.4, status: "ACTIVE" },
+      { id: 2, name: "Suresh Patel", profit: 234.0, status: "ACTIVE" },
+      { id: 3, name: "Anita Sharma", profit: -120.5, status: "ACTIVE" },
+      { id: 4, name: "Demo User", profit: 85.25, status: "PAPER" },
+    ]);
+    setLastUpdated(new Date());
+
+    const t = setInterval(() => {
+      setTicker((s) => ({
+        nifty: `NIFTY ${18200 + Math.floor(Math.random() * 200)}`,
+        bank: `BANKNIFTY ${42100 + Math.floor(Math.random() * 300)}`,
+      }));
+    }, 3000);
+
+    const u = setInterval(() => {
+      setClients((prev) => prev.map((c) => ({ ...c, profit: Math.round((c.profit + (Math.random() - 0.45) * 50) * 100) / 100 })));
+      setLastUpdated(new Date());
+    }, 5000);
+
+    return () => { clearInterval(t); clearInterval(u); };
+  }, []);
+
+  const fmt = (n) => (n >= 0 ? `+₹${n.toLocaleString()}` : `-₹${Math.abs(n).toLocaleString()}`);
+
+  return (
+    <>
+      <Head>
+        <title>Profitmakes Algo</title>
+        <meta name="description" content="Profitmakes Algo — realtime PWA demo" />
+        <meta name="mobile-web-app-capable" content="yes" />
+        <link rel="manifest" href="/manifest.json" />
+      </Head>
+
+      <div style={{ minHeight: "100vh", background: "#f8fafc", fontFamily: "Inter, Arial, sans-serif", color: "#0f172a" }}>
+        <header style={{ background: "linear-gradient(90deg,#6366f1,#34d399)", color: "white", padding: 14, position: "sticky", top: 0 }}>
+          <div style={{ maxWidth: 480, margin: "0 auto", display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ width: 44, height: 44, borderRadius: 10, background: "rgba(255,255,255,0.12)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M3 12h6l3-8 3 16 3-8h4" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            </div>
+            <div>
+              <div style={{ fontSize: 18, fontWeight: 600 }}>Profitmakes Algo</div>
+              <div style={{ fontSize: 12, opacity: 0.9 }}>Realtime PWA Dashboard</div>
+            </div>
+            <div style={{ marginLeft: "auto", textAlign: "right", fontSize: 12 }}>
+              <div>Live</div>
+              <div style={{ opacity: 0.9 }}>{lastUpdated.toLocaleTimeString()}</div>
+            </div>
+          </div>
+        </header>
+
+        <main style={{ maxWidth: 480, margin: "18px auto", padding: "0 12px" }}>
+          <div style={{ background: "white", borderRadius: 12, padding: 12, boxShadow: "0 6px 18px rgba(15,23,42,0.06)", display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 11, color: "#6b7280" }}>Indices</div>
+              <div style={{ display: "flex", gap: 16, marginTop: 6 }}>
+                <div style={{ fontSize: 14, fontWeight: 600 }}>{ticker.nifty}</div>
+                <div style={{ fontSize: 14, fontWeight: 600 }}>{ticker.bank}</div>
+              </div>
+            </div>
+            <a style={{ padding: "8px 12px", background: "#4f46e5", color: "white", borderRadius: 8, textDecoration: "none", fontSize: 13 }}>Open Demat</a>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
+            <div style={{ background: "white", borderRadius: 12, padding: 12, boxShadow: "0 6px 18px rgba(15,23,42,0.06)" }}>
+              <div style={{ fontSize: 11, color: "#6b7280" }}>Today's P&L</div>
+              <div style={{ fontSize: 20, fontWeight: 700, marginTop: 6, color: "#16a34a" }}>{fmt(clients.reduce((s, c) => s + c.profit, 0))}</div>
+            </div>
+            <div style={{ background: "white", borderRadius: 12, padding: 12, boxShadow: "0 6px 18px rgba(15,23,42,0.06)" }}>
+              <div style={{ fontSize: 11, color: "#6b7280" }}>Active Clients</div>
+              <div style={{ fontSize: 20, fontWeight: 700, marginTop: 6 }}>{clients.length}</div>
+            </div>
+          </div>
+
+          <section style={{ marginBottom: 12 }}>
+            <h3 style={{ fontSize: 14, marginBottom: 8 }}>Client Snapshot</h3>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {clients.map((c) => (
+                <div key={c.id} style={{ background: "white", borderRadius: 12, padding: 12, display: "flex", justifyContent: "space-between", alignItems: "center", boxShadow: "0 6px 18px rgba(15,23,42,0.04)" }}>
+                  <div>
+                    <div style={{ fontSize: 14, fontWeight: 600 }}>{c.name}</div>
+                    <div style={{ fontSize: 12, color: "#6b7280" }}>Status: {c.status}</div>
+                  </div>
+                  <div style={{ textAlign: "right" }}>
+                    <div style={{ fontSize: 16, fontWeight: 700, color: c.profit >= 0 ? "#16a34a" : "#ef4444" }}>{fmt(Math.round(c.profit * 100) / 100)}</div>
+                    <div style={{ fontSize: 11, color: "#9ca3af" }}>Masked</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <div style={{ marginTop: 8 }}>
+            <button style={{ width: "100%", padding: "12px 14px", borderRadius: 12, background: "linear-gradient(90deg,#10b981,#34d399)", color: "white", border: "none", fontWeight: 700 }}>Add to Home Screen</button>
+            <div style={{ fontSize: 12, color: "#6b7280", marginTop: 8 }}>This is a demo PWA. Replace demo data with your webhook / Google Sheet to make it live.</div>
+          </div>
+
+          <footer style={{ marginTop: 18, textAlign: "center", fontSize: 12, color: "#9ca3af" }}>© Profitmakes Algo — Demo PWA</footer>
+        </main>
+      </div>
+    </>
+  );
+}
